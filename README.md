@@ -1,6 +1,6 @@
 # chai check-in
 
-Everytime you sit down in your break to drink your Chai, in your lunch break or whatever, write one scentence in it. Than analyze your thoughts after weeks.
+Everytime you sit down in your break to drink your Chai. write one scentence in it. Than analyze your thoughts after weeks.
 
 # How to?
 Double-click `chai.bat` — a clean terminal opens, asks what's on your mind, you type one line, it saves, it closes.
