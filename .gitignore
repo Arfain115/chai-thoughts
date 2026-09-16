@@ -1,3 +1,7 @@
-chai_log.jsonl
+data/
+.env
+.freebuff/
 __pycache__/
 *.pyc
+venv/
+chai_log.jsonl
