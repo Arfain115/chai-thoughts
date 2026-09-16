@@ -1,45 +1,17 @@
 # chai thoughts
 
-One line, every chai. Type what's on your mind at each chai break, and after a
-few entries, get a one-sentence AI reflection on your recurring themes.
+One line, every chai. Type what's on your mind at each chai break — after a few entries, get a one-sentence reflection on what's been going on.
 
-Everytime you sit down in your break to drink your Chai. write one scentence in
-it. Than analyze your thoughts after weeks.
+## Start using it
 
-## Run it live (free)
+Open **https://arfain1234-chai-thoughts.static.hf.space** — no account, no install.
 
-The app runs as a small Flask server. The easiest free hosts are
-[Render](https://render.com) or [Hugging Face Spaces](https://huggingface.co/spaces) —
-push this repo, point the service at it, and add one environment variable:
+## How it works
 
-```
-GEMINI_API_KEY=your-key-from-aistudio.google.com/apikey
-```
+1. Type one line and press Enter. A chai cup says thanks. 🍵
+2. After 3 entries, **analyze your thoughts** unlocks — it gives you one warm sentence about the themes in your entries.
+3. For the analysis you need a free Gemini API key: get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into the left panel. It stays in your browser only.
 
-Render: build `pip install -r requirements.txt`, start `gunicorn app:app`.
-Spaces: the included `Dockerfile` works as-is (it exposes port 7860).
+## Your entries
 
-Free tier note: some hosts sleep after 15 minutes of no visitors and take
-~30-50 seconds to wake on the next visit. That's the only cost of "free."
-
-## How memory works
-
-Each visitor gets a private cookie the first time they open the site. Their
-entries are saved under that cookie's ID, so closing and reopening the site
-(same browser) shows their data again. Nobody sees anyone else's entries.
-
-## Run it locally instead
-
-```
-pip install -r requirements.txt
-```
-Copy `.env.example` to `.env`, paste in your Gemini key.
-```
-python app.py
-```
-
-## Old desktop version
-
-The `chai.bat` / `chai_review.bat` scripts are the original offline version —
-double-click to log one line locally, or run a local review of your entries.
-The hosted app in `app.py` is the new way to use it.
+Saved only in your browser — nobody else can see them. Clearing your browser data deletes them (there's also a "clear my entries" button).
