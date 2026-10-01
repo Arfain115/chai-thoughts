@@ -1,0 +1,256 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chai thoughts</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; display:flex; height:100vh; font-family: -apple-system, Segoe UI, sans-serif; background:#0d0d0d; color:#eaeaea; }
+
+  #sidebar { width:300px; border-right:1px solid #242424; padding:18px; display:flex; flex-direction:column; flex-shrink:0; }
+  #sidebar h2 { font-size:15px; margin:0 0 20px; color:#eee; }
+  #analyzeBtn { padding:10px 14px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:#888; font-size:13px; cursor:not-allowed; text-align:left; }
+  #analyzeBtn.ready { color:#eaeaea; cursor:pointer; border-color:#444; }
+  #analyzeBtn.ready:hover { background:#222; }
+  #analysis { margin-top:16px; font-size:13px; line-height:1.6; color:#bbb; white-space:pre-wrap; }
+  #hint { font-size:11px; color:#555; margin-top:8px; }
+  #clearBtn { margin-top:14px; background:none; border:none; color:#444; font-size:11px; cursor:pointer; text-align:left; padding:0; }
+  #clearBtn:hover { color:#888; }
+
+  #keyPanel { margin-top:auto; border-top:1px solid #242424; padding-top:14px; }
+  #keyPanel label { font-size:11px; color:#888; display:flex; justify-content:space-between; margin-bottom:6px; }
+  #keyState { color:#7fbf7f; }
+  #keyInput { width:100%; padding:8px 10px; font-size:12px; background:#161616; border:1px solid #2a2a2a; border-radius:8px; color:#eaeaea; outline:none; }
+  #keyInput:focus { border-color:#555; }
+  #keyActions { display:flex; gap:8px; margin-top:6px; }
+  #keyActions button { flex:1; padding:6px 0; font-size:11px; border-radius:6px; border:1px solid #333; background:#1a1a1a; color:#bbb; cursor:pointer; }
+  #keyActions button:hover { background:#222; }
+  #keyHint { font-size:10px; color:#555; margin-top:6px; }
+
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #chatArea { flex:1; overflow-y:auto; padding:32px 24px 12px; display:flex; flex-direction:column; gap:10px; }
+  .bubble { align-self:flex-end; background:#1c1c1c; border:1px solid #2a2a2a; padding:10px 14px; border-radius:14px 14px 2px 14px; max-width:60%; font-size:14px; word-wrap:break-word; }
+
+  #inputBar { padding:20px 24px 28px; display:flex; justify-content:center; }
+  #entry { width:100%; max-width:600px; padding:14px 18px; font-size:16px; background:#161616; border:1px solid #2a2a2a; border-radius:24px; color:#eaeaea; outline:none; }
+  #entry:focus { border-color:#555; }
+
+  #chaiOverlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; pointer-events:none; opacity:0; }
+  #chaiOverlay.show { animation: chaiPop 1.4s ease; }
+  #chaiOverlay .emoji { font-size:64px; }
+  #chaiOverlay .msg { margin-top:8px; font-size:15px; color:#eee; background:#000a; padding:6px 14px; border-radius:20px; }
+  @keyframes chaiPop {
+    0%   { opacity:0; transform: scale(0.8) translateY(10px); }
+    20%  { opacity:1; transform: scale(1) translateY(0); }
+    80%  { opacity:1; }
+    100% { opacity:0; transform: scale(0.95) translateY(-10px); }
+  }
+
+  @media (max-width: 640px) {
+    body { flex-direction:column; }
+    #sidebar { width:100%; border-right:none; border-bottom:1px solid #242424; padding:12px 18px; }
+    #sidebar h2 { margin:0 0 8px; }
+    #analysis { margin-top:8px; max-height:120px; overflow-y:auto; }
+    #clearBtn { display:none; }
+    #chatArea { padding:16px; }
+    .bubble { max-width:85%; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <h2>chai thoughts</h2>
+    <div id="analyzeBtn">analyze your thoughts</div>
+    <div id="hint"></div>
+    <div id="analysis"></div>
+    <button id="clearBtn" title="delete all entries from this browser">clear my entries</button>
+
+    <div id="keyPanel">
+      <label for="keyInput">your gemini key <span id="keyState"></span></label>
+      <input id="keyInput" type="password" placeholder="paste key (starts with AIza…)" autocomplete="off">
+      <div id="keyActions">
+        <button id="saveKeyBtn">save key</button>
+        <button id="forgetKeyBtn">forget</button>
+      </div>
+      <div id="keyHint">stored only in this browser, never sent anywhere except Google · free key: aistudio.google.com/apikey</div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="chatArea"></div>
+    <div id="inputBar">
+      <input id="entry" type="text" placeholder="what's on your mind?" autocomplete="off" autofocus>
+    </div>
+  </div>
+
+  <div id="chaiOverlay">
+    <div class="emoji">🍵</div>
+    <div class="msg">enjoy your chai</div>
+  </div>
+
+<script>
+const GEMINI_MODEL = "gemini-3.1-flash-lite";
+const STORE_KEY = "chai_thoughts_entries";
+const KEY_STORE = "chai_thoughts_gemini_key";
+
+const input = document.getElementById('entry');
+const chatArea = document.getElementById('chatArea');
+const overlay = document.getElementById('chaiOverlay');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const analysisBox = document.getElementById('analysis');
+const hint = document.getElementById('hint');
+const clearBtn = document.getElementById('clearBtn');
+const keyInput = document.getElementById('keyInput');
+const keyState = document.getElementById('keyState');
+const saveKeyBtn = document.getElementById('saveKeyBtn');
+const forgetKeyBtn = document.getElementById('forgetKeyBtn');
+
+function getKey() {
+  return (localStorage.getItem(KEY_STORE) || '').trim();
+}
+
+function renderKeyState() {
+  const has = !!getKey();
+  keyState.textContent = has ? '✓ saved' : '';
+  forgetKeyBtn.style.display = has ? 'block' : 'none';
+}
+
+saveKeyBtn.addEventListener('click', () => {
+  const k = keyInput.value.trim();
+  if (!k) return;
+  localStorage.setItem(KEY_STORE, k);
+  keyInput.value = '';
+  renderKeyState();
+  keyHintAfterSave();
+});
+
+function keyHintAfterSave() {
+  document.getElementById('keyHint').textContent = 'key saved in this browser';
+  setTimeout(() => {
+    document.getElementById('keyHint').textContent = 'stored only in this browser, never sent anywhere except Google · free key: aistudio.google.com/apikey';
+  }, 2500);
+}
+
+forgetKeyBtn.addEventListener('click', () => {
+  localStorage.removeItem(KEY_STORE);
+  renderKeyState();
+});
+
+renderKeyState();
+
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch { return []; }
+}
+function saveEntries(entries) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(entries));
+}
+
+function addBubble(text) {
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  chatArea.appendChild(bubble);
+}
+
+function refreshAnalyzeState() {
+  const count = loadEntries().length;
+  if (count >= 3) {
+    analyzeBtn.classList.add('ready');
+    hint.textContent = '';
+  } else {
+    analyzeBtn.classList.remove('ready');
+    hint.textContent = `log ${3 - count} more to unlock`;
+  }
+}
+
+function renderAll() {
+  chatArea.innerHTML = '';
+  for (const e of loadEntries()) addBubble(e.text);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  refreshAnalyzeState();
+}
+
+function trimToWords(text, limit) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= limit) return text;
+  return words.slice(0, limit).join(' ').replace(/[,.;:]+$/, '') + '...';
+}
+
+function showChai() {
+  overlay.classList.remove('show');
+  void overlay.offsetWidth;
+  overlay.classList.add('show');
+}
+
+renderAll();
+
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && input.value.trim()) {
+    const text = input.value.trim();
+    input.value = '';
+
+    const entries = loadEntries();
+    entries.push({ timestamp: new Date().toISOString(), text });
+    saveEntries(entries);
+
+    addBubble(text);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    showChai();
+    refreshAnalyzeState();
+  }
+});
+
+analyzeBtn.addEventListener('click', async () => {
+  if (loadEntries().length < 3) return;
+  const apiKey = getKey();
+  if (!apiKey) {
+    analysisBox.textContent = 'add your free Gemini key in the left panel first.';
+    keyInput.focus();
+    return;
+  }
+  analysisBox.textContent = 'thinking...';
+  const joined = loadEntries().map(e => `- ${e.text}`).join('\n');
+  const prompt =
+    "Here are someone's short daily journal entries, one per chai break:\n\n" +
+    joined + "\n\n" +
+    "In one short sentence, reflect back a recurring theme you notice. " +
+    "Stay honest, but lean toward a warm, encouraging, positive framing where the " +
+    "entries genuinely allow it — don't invent positivity that isn't there. " +
+    "No jargon, no clinical language. " +
+    "HARD LIMIT: under 30 words, no exceptions. Just the sentence, nothing else.";
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      }
+    );
+    const data = await res.json();
+    const result = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (res.ok && result) {
+      analysisBox.textContent = trimToWords(result, 30);
+    } else if (res.status === 400 && /api key/i.test(data?.error?.message || '')) {
+      analysisBox.textContent = "that key looks invalid — re-paste it in the left panel.";
+    } else {
+      analysisBox.textContent = "couldn't reach Gemini: " + (data?.error?.message || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    analysisBox.textContent = "couldn't reach Gemini: " + err.message;
+  }
+});
+
+clearBtn.addEventListener('click', () => {
+  if (confirm('Delete all your entries from this browser?')) {
+    localStorage.removeItem(STORE_KEY);
+    analysisBox.textContent = '';
+    renderAll();
+  }
+});
+</script>
+</body>
+</html>
